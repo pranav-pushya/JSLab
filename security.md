@@ -42,7 +42,7 @@ User code runs inside an **iframe with `sandbox="allow-scripts"`** (no `allow-sa
 This is a personal learning project, but if you find a security issue:
 
 1. Open a GitHub Issue with the label `security`
-2. Or contact: pranav.pushya@chitkara.edu.in
+2. Or contact: pushyapranav24@gmail.com
 3. Include: file name, line number, proof of concept, and suggested fix
 
 ---
