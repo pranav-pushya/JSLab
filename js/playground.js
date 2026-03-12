@@ -112,60 +112,149 @@
     if (runIframe && runIframe.parentNode) {
       runIframe.parentNode.removeChild(runIframe);
     }
-    if (runTimeout) clearTimeout(runTimeout);
+function runCode(code) {
+  const iframe = document.getElementById(
+    'output-iframe');
+  const consoleOutput = document.getElementById(
+    'console-output');
+  
+  if (!iframe || !consoleOutput) return;
+  consoleOutput.innerHTML = '';
 
-    // Create sandboxed iframe — allow-scripts but NOT allow-same-origin
-    // This prevents the iframe from accessing the parent's localStorage/DOM
-    runIframe = document.createElement('iframe');
-    runIframe.sandbox = 'allow-scripts';
-    runIframe.style.display = 'none';
-    document.body.appendChild(runIframe);
+  const escapedCode = code
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$');
 
-    // Listen for console messages from iframe
-    function handleMessage(e) {
-      if (!runIframe || e.source !== runIframe.contentWindow) return;
-      var data = e.data;
-      if (data && data.__jslab) {
-        addOutput(data.type || 'log', data.args || []);
-      }
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 12px;
+  }
+</style>
+</head>
+<body>
+<script>
+(function() {
+  var _log = console.log.bind(console);
+  var _warn = console.warn.bind(console);
+  var _err = console.error.bind(console);
+
+  function serialize(val) {
+    if (val === null) return 'null';
+    if (val === undefined) return 'undefined';
+    if (typeof val === 'function') 
+      return val.toString();
+    if (typeof val === 'object') {
+      try { return JSON.stringify(val, null, 2); }
+      catch(e) { return String(val); }
     }
-    window.addEventListener('message', handleMessage);
+    return String(val);
+  }
 
-    // Build the code to run inside the iframe
-    var iframeCode = [
-      '<scr' + 'ipt>',
-      'var console = {',
-      '  log: function() { parent.postMessage({ __jslab:true, type:"log", args:Array.prototype.slice.call(arguments).map(function(a){ try{return typeof a==="object"?JSON.stringify(a,null,2):String(a);}catch(e){return String(a);} }) }, "*"); },',
-      '  warn: function() { parent.postMessage({ __jslab:true, type:"warn", args:Array.prototype.slice.call(arguments).map(function(a){ try{return typeof a==="object"?JSON.stringify(a,null,2):String(a);}catch(e){return String(a);} }) }, "*"); },',
-      '  error: function() { parent.postMessage({ __jslab:true, type:"error", args:Array.prototype.slice.call(arguments).map(function(a){ try{return typeof a==="object"?JSON.stringify(a,null,2):String(a);}catch(e){return String(a);} }) }, "*"); },',
-      '  info: function() { console.log.apply(null, arguments); },',
-      '  table: function(d) { console.log(d); },',
-      '  clear: function() { parent.postMessage({ __jslab:true, type:"clear", args:[] }, "*"); }',
-      '};',
-      'try {',
-      code,
-      '} catch(e) {',
-      '  console.error("❌ " + e.name + ": " + e.message);',
-      '}',
-      '</scr' + 'ipt>'
-    ].join('\n');
+  function post(level, args) {
+    var msg = Array.from(args).map(serialize).join(' ');
+    window.parent.postMessage(
+      { type: 'jslab-console', level: level, msg: msg },
+      '*'
+    );
+  }
 
-    runIframe.srcdoc = iframeCode;
+  console.log = function() { 
+    post('log', arguments); 
+    _log.apply(console, arguments); 
+  };
+  console.warn = function() { 
+    post('warn', arguments); 
+    _warn.apply(console, arguments); 
+  };
+  console.error = function() { 
+    post('error', arguments); 
+    _err.apply(console, arguments); 
+  };
+  console.info = function() { 
+    post('info', arguments); 
+  };
 
-    // 5-second timeout — kill iframe if code runs too long (infinite loop protection)
-    runTimeout = setTimeout(function () {
-      if (runIframe && runIframe.parentNode) {
-        runIframe.parentNode.removeChild(runIframe);
-        addOutput('error', ['⏱ Execution timed out after 5 seconds (infinite loop?)']);
-      }
-      window.removeEventListener('message', handleMessage);
-      runIframe = null;
-    }, 5000);
+  window.onerror = function(msg, src, line, col) {
+    window.parent.postMessage({
+      type: 'jslab-console',
+      level: 'error',
+      msg: msg + ' (line ' + line + 
+           (col ? ', col ' + col : '') + ')'
+    }, '*');
+    return true;
+  };
+
+  window.addEventListener(
+    'unhandledrejection', function(e) {
+    window.parent.postMessage({
+      type: 'jslab-console',
+      level: 'error',
+      msg: 'Unhandled Promise: ' + 
+           (e.reason?.message || e.reason)
+    }, '*');
+  });
+})();
+<\/script>
+<script>
+try {
+  ${code}
+} catch(e) {
+  window.parent.postMessage({
+    type: 'jslab-console',
+    level: 'error',
+    msg: e.name + ': ' + e.message
+  }, '*');
+}
+<\/script>
+</body>
+</html>`;
+
+  iframe.srcdoc = html;
+}
+
+// Message listener — add ONCE at file top level
+// (not inside any function)
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'jslab-console') 
+    return;
+  
+  const panel = document.getElementById(
+    'console-output');
+  if (!panel) return;
+
+  const line = document.createElement('div');
+  line.className = 'c-line c-' + e.data.level;
+  
+  const icon = e.data.level === 'error' ? '✕' :
+               e.data.level === 'warn'  ? '⚠' :
+               e.data.level === 'info'  ? 'ℹ' : '›';
+  
+  line.innerHTML = 
+    '<span class="c-icon">' + icon + '</span>' +
+    '<span class="c-msg">' + 
+    e.data.msg
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;') + 
+    '</span>';
+  
+  panel.appendChild(line);
+  panel.scrollTop = panel.scrollHeight;
+});
 
     if (typeof ProgressManager !== 'undefined') {
       ProgressManager.logActivity('Ran code in Playground');
     }
-  }
+}
 
   // ── Save / Load Snippets ────────────────────
   function saveSnippet() {

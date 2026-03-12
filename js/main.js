@@ -241,85 +241,187 @@ function showCopyToast() {
 
 /* ========== SETTINGS MODAL ========== */
 function initSettings() {
-  const settingsBtns = document.querySelectorAll('.settings-btn');
+  const settingsBtns = document.querySelectorAll('.settings-btn, #drawer-settings-btn');
   const modal = document.getElementById('settings-modal');
   const closeBtn = document.getElementById('close-settings');
   const apiKeyInput = document.getElementById('settings-api-key');
   const toggleKeyBtn = document.getElementById('toggle-api-key');
-  const resetBtn = document.getElementById('reset-progress-btn');
+  const st2DateInput = document.getElementById('settings-st2-date');
+  const reduceMotionCb = document.getElementById('settings-reduce-motion');
+  const colorSwatches = document.querySelectorAll('.color-swatch');
 
-  if (!modal || settingsBtns.length === 0) return;
+  if (!modal) return;
 
-  // Load saved key
-  try {
-    const savedKey = localStorage.getItem('jslab_gemini_key');
-    if (savedKey && apiKeyInput) {
-      apiKeyInput.value = savedKey;
-      apiKeyInput.type = 'password';
-    }
-  } catch(e){}
+  // 1. Data Store Load
+  let appSettings = {
+    st2Date: "2026-05-07",
+    accentColor: "#4fc3f7",
+    reduceMotion: false
+  };
 
-  if (toggleKeyBtn && apiKeyInput) {
-    toggleKeyBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (apiKeyInput.type === 'password') {
-        apiKeyInput.type = 'text';
-        toggleKeyBtn.textContent = '🙈';
-      } else {
-        apiKeyInput.type = 'password';
-        toggleKeyBtn.textContent = '👁️';
-      }
-    });
-  }
-
-  settingsBtns.forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      modal.style.display = 'flex';
+  function loadSettings() {
+    try {
+      const saved = localStorage.getItem('jslab_settings');
+      if (saved) appSettings = { ...appSettings, ...JSON.parse(saved) };
       
-      // Close mobile menu if open
-      const overlay = document.getElementById("mobile-nav-overlay");
-      if(overlay) overlay.classList.remove("open");
-    });
-  });
-
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function() {
-      modal.style.display = 'none';
-      if (apiKeyInput) {
-        try { localStorage.setItem('jslab_gemini_key', apiKeyInput.value.trim()); } catch(e){}
+      // Also get API key
+      const savedKey = localStorage.getItem('jslab_gemini_key');
+      if (savedKey && apiKeyInput) {
+        apiKeyInput.value = savedKey;
+        apiKeyInput.type = 'password';
       }
-    });
+    } catch(e){}
+    applySettings();
   }
 
-  // Close on outside click
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) {
-      modal.style.display = 'none';
-      if (apiKeyInput) {
-        try { localStorage.setItem('jslab_gemini_key', apiKeyInput.value.trim()); } catch(e){}
-      }
+  function applySettings() {
+    // DOM Inputs Updates
+    if (st2DateInput) st2DateInput.value = appSettings.st2Date;
+    if (reduceMotionCb) reduceMotionCb.checked = appSettings.reduceMotion;
+
+    // Apply CSS Variables
+    document.documentElement.style.setProperty('--accent-blue', appSettings.accentColor);
+    if (appSettings.reduceMotion) {
+      document.body.classList.add('reduce-motion');
+      document.documentElement.style.setProperty('--transition', 'none');
+    } else {
+      document.body.classList.remove('reduce-motion');
+      document.documentElement.style.setProperty('--transition', '0.3s ease');
     }
+
+    // Sync globals
+    window.EXAM_DATES = window.EXAM_DATES || {};
+    window.EXAM_DATES.st2 = appSettings.st2Date;
+
+    // Call initCountdowns directly if we are on Home page to refresh instantly
+    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
+       if (typeof initCountdowns === 'function') initCountdowns();
+    }
+  }
+
+  function saveSettings() {
+    if (st2DateInput) appSettings.st2Date = st2DateInput.value;
+    if (reduceMotionCb) appSettings.reduceMotion = reduceMotionCb.checked;
+    
+    if (apiKeyInput) {
+      try { localStorage.setItem('jslab_gemini_key', apiKeyInput.value.trim()); } catch(e){}
+    }
+    
+    try {
+      localStorage.setItem('jslab_settings', JSON.stringify(appSettings));
+    } catch(e){}
+    
+    applySettings();
+  }
+
+  // Bind Open/Close
+  settingsBtns.forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      loadSettings();
+      modal.style.display = 'flex';
+    });
   });
 
+  const closeModal = () => {
+    saveSettings();
+    modal.style.display = 'none';
+  };
+
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+  // Bind Swatches
+  colorSwatches.forEach(swatch => {
+    swatch.addEventListener('click', e => {
+      const col = e.target.dataset.color;
+      if (col) {
+        appSettings.accentColor = col;
+        saveSettings();
+      }
+    });
+  });
+
+  // Export Data
+  const exportBtn = document.getElementById('settings-export-data');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const data = {
+        progress: localStorage.getItem('jslab_progress'),
+        notes: localStorage.getItem('jslab_notes'),
+        snippets: localStorage.getItem('jslab_snippets'),
+        settings: localStorage.getItem('jslab_settings'),
+        key: localStorage.getItem('jslab_gemini_key')
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `jslab_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+    });
+  }
+
+  // Import Data
+  const importInput = document.getElementById('import-file-input');
+  if (importInput) {
+    importInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = JSON.parse(evt.target.result);
+          if (data.progress) localStorage.setItem('jslab_progress', data.progress);
+          if (data.notes) localStorage.setItem('jslab_notes', data.notes);
+          if (data.snippets) localStorage.setItem('jslab_snippets', data.snippets);
+          if (data.settings) localStorage.setItem('jslab_settings', data.settings);
+          if (data.key) localStorage.setItem('jslab_gemini_key', data.key);
+          alert('Data imported successfully! Reloading...');
+          window.location.reload();
+        } catch(err) { alert('Invalid backup file.'); }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // Reset Progress
+  const resetBtn = document.getElementById('reset-progress-btn');
   if (resetBtn) {
-    resetBtn.addEventListener('click', function() {
-      if (confirm("Are you sure you want to completely RESET your progress? This cannot be undone.")) {
-        if (confirm("Double checking: Delete all scores, notes, and progress?")) {
-          try {
-            // Keep the API key though
-            const key = localStorage.getItem('jslab_gemini_key');
-            localStorage.clear();
-            if (key) localStorage.setItem('jslab_gemini_key', key);
-            alert("Progress reset successful. Reloading page.");
-            location.reload();
-          } catch(e){
-            alert("Error resetting progress.");
-          }
-        }
+    resetBtn.addEventListener('click', () => {
+      if (confirm("Reset ALL JSLab progress, notes, and scores? This cannot be undone.")) {
+        const k = localStorage.getItem('jslab_gemini_key');
+        localStorage.clear();
+        if (k) localStorage.setItem('jslab_gemini_key', k);
+        alert("Reset complete. Reloading...");
+        window.location.reload();
       }
     });
   }
+
+  // Clear Notes
+  const clearNotesBtn = document.getElementById('settings-clear-notes');
+  if (clearNotesBtn) {
+    clearNotesBtn.addEventListener('click', () => {
+      if (confirm("Clear all your saved notes?")) {
+        localStorage.removeItem('jslab_notes');
+        alert("Notes deleted. Reloading...");
+        window.location.reload();
+      }
+    });
+  }
+
+  // Toggle API visibility
+  if (toggleKeyBtn && apiKeyInput) {
+    toggleKeyBtn.addEventListener('click', e => {
+      e.preventDefault();
+      const st = apiKeyInput.type === 'password' ? 'text' : 'password';
+      apiKeyInput.type = st;
+      toggleKeyBtn.textContent = st === 'text' ? '🙈' : '👁️';
+    });
+  }
+
+  // Auto Load on boot
+  loadSettings();
 }
 
 /* ========== INIT ========== */

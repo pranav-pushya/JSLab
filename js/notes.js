@@ -97,10 +97,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function createNewNote() {
     currentNoteId = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
     noteTitleInput.value = '';
-    noteEditor.innerHTML = '';
+    noteEditor.value = ''; // Use .value for textarea
     btnDeleteNote.style.display = 'none';
     renderNotesList(searchInput.value);
     noteTitleInput.focus();
+    updateWordCount();
   }
 
   function openNote(id) {
@@ -108,17 +109,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!note) return;
     currentNoteId = note.id;
     noteTitleInput.value = note.title;
-    noteEditor.innerHTML = note.content;
+    // Set both .value and .innerHTML for safety depending on previous content saves
+    noteEditor.value = note.content 
+      ? note.content.replace(/<br>/gi, '\n').replace(/<[^>]*>?/qm, '') // Strip remaining HTML if switching from old format
+      : '';
     btnDeleteNote.style.display = 'inline-flex';
     renderNotesList(searchInput.value);
+    updateWordCount();
   }
 
   function saveCurrentNote() {
     const title = noteTitleInput.value.trim();
-    const content = noteEditor.innerHTML;
+    const content = noteEditor.value; // Read from .value for textarea
     
     // Ignore if completely empty
-    if (!title && !noteEditor.textContent.trim() && !content.includes('<img')) return;
+    if (!title && !content.trim()) return;
 
     let note = notes.find(n => n.id === currentNoteId);
     if (!note) {
@@ -203,9 +208,20 @@ document.addEventListener("DOMContentLoaded", () => {
     renderNotesList(e.target.value);
   });
 
+  // Word and Char counter
+  function updateWordCount() {
+    const wc = document.getElementById('word-count');
+    if (!wc) return;
+    const text = noteEditor.value || '';
+    const chars = text.length;
+    const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    wc.textContent = `${words} words | ${chars} chars`;
+  }
+
   // Auto-save logic (debounced)
   let autoSaveTimeout;
   const triggerAutoSave = () => {
+    updateWordCount();
     clearTimeout(autoSaveTimeout);
     autoSaveTimeout = setTimeout(() => {
       saveCurrentNote();
@@ -224,35 +240,38 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // --- Toolbar Commands ---
+  // Textarea does not support rich HTML execCommand natively.
+  // Instead we can insert markdown syntaxes or override the buttons
   
-  function execCmd(command, value = null) {
-    document.execCommand(command, false, value);
+  function insertAtCursor(before, after = '') {
+    if (!noteEditor) return;
+    const start = noteEditor.selectionStart;
+    const end = noteEditor.selectionEnd;
+    const text = noteEditor.value;
+    const selection = text.substring(start, end);
+    
+    noteEditor.value = 
+      text.substring(0, start) + 
+      before + selection + after + 
+      text.substring(end);
+      
+    const newPos = start + before.length + selection.length;
+    noteEditor.setSelectionRange(newPos, newPos);
     noteEditor.focus();
     triggerAutoSave();
   }
 
-  btnBold.addEventListener('click', () => execCmd('bold'));
-  btnItalic.addEventListener('click', () => execCmd('italic'));
-  btnUnderline.addEventListener('click', () => execCmd('underline'));
-  btnUl.addEventListener('click', () => execCmd('insertUnorderedList'));
-  btnOl.addEventListener('click', () => execCmd('insertOrderedList'));
-  
+  btnBold.addEventListener('click', () => insertAtCursor('**', '**'));
+  btnItalic.addEventListener('click', () => insertAtCursor('_', '_'));
+  btnUnderline.addEventListener('click', () => insertAtCursor('<u>', '</u>'));
+  btnUl.addEventListener('click', () => insertAtCursor('- '));
+  btnOl.addEventListener('click', () => insertAtCursor('1. '));
   btnCode.addEventListener('click', () => {
-    // For code block, we wrap in <pre><code>...</code></pre>
-    const sel = window.getSelection();
-    if (sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const text = range.toString();
-      if (text) {
-        // inline code if inside something, or block code if large
-        if (text.includes('\n')) {
-          execCmd('insertHTML', `<pre style="background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);padding:10px;border-radius:4px;font-family:monospace;"><code>${text}</code></pre>`);
-        } else {
-          execCmd('insertHTML', `<code style="background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:3px;font-family:monospace;color:var(--accent-blue);">${text}</code>`);
-        }
-      } else {
-        execCmd('insertHTML', `<pre style="background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);padding:10px;border-radius:4px;font-family:monospace;"><code>// your code here\n</code></pre>`);
-      }
+    const text = noteEditor.value.substring(noteEditor.selectionStart, noteEditor.selectionEnd);
+    if (text.includes('\\n')) {
+      insertAtCursor('```javascript\\n', '\\n```');
+    } else {
+      insertAtCursor('`', '`');
     }
   });
 });

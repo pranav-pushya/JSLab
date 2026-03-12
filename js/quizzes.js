@@ -42,7 +42,7 @@
         pool.push({ lecture: q.lecture, lectureTitle: q.topic, q: q.question, options: q.options, correct: q.correct, explanation: q.explanation, code: q.code });
       });
     }
-    return pool;
+    return validateAndFilterQuestions(pool);
   }
 
   function shuffle(arr) {
@@ -51,6 +51,31 @@
       var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
     }
     return arr;
+  }
+
+  // ── Question Filter ─────────────────────────
+  function validateAndFilterQuestions(arr) {
+    return arr.filter((q, i) => {
+      if (!q || typeof q !== 'object') {
+        console.warn('Bad question at index', i);
+        return false;
+      }
+      if (!Array.isArray(q.options) || 
+          q.options.length < 2) {
+        console.warn('Missing options:', q.id || i);
+        return false;
+      }
+      // Pad to 4 options if needed
+      while (q.options.length < 4) {
+        q.options.push('(No option)');
+      }
+      if (typeof q.correct !== 'number' || 
+          q.correct < 0 || 
+          q.correct >= q.options.length) {
+        q.correct = 0;
+      }
+      return true;
+    });
   }
 
   // ── Start Quiz ──────────────────────────────
@@ -131,13 +156,27 @@
       html += '<pre style="margin-top:10px;margin-bottom:15px;"><code class="language-javascript">' + escapeHtml(q.code) + '</code></pre>';
     }
 
-    q.options.forEach(function (opt, oi) {
-      var selected = state.answers[state.current] === oi ? ' selected' : '';
-      html += '<button class="quiz-option' + selected + '" data-oi="' + oi + '">';
-      html += '<span class="option-letter">' + String.fromCharCode(65 + oi) + '</span>';
-      html += opt;
-      html += '</button>';
-    });
+    html += '<div class="options-wrap">';
+    if (!q.options || q.options.length === 0) {
+      html += '<p style="color:#ff5252">No options available</p>';
+    } else {
+      q.options.forEach(function (opt, oi) {
+        var cls = 'opt-btn';
+        if (state.answers[state.current] === oi) cls += ' opt-selected';
+        
+        // If in shuffle mode and we've already answered this question, show correct/wrong
+        if (state.mode === 'shuffle' && state.answers[state.current] !== undefined) {
+          if (oi === q.correct) cls += ' opt-correct';
+          else if (oi === state.answers[state.current]) cls += ' opt-wrong';
+        }
+
+        html += '<button class="' + cls + '" data-oi="' + oi + '">';
+        html += '<span class="opt-letter">' + String.fromCharCode(65 + oi) + '</span>';
+        html += '<span class="opt-text">' + escapeHtml(opt) + '</span>';
+        html += '</button>';
+      });
+    }
+    html += '</div>';
     
     // Immediate feedback container for shuffle mode
     html += '<div id="shuffle-feedback" style="display:none; margin-top:20px; padding:15px; border-radius:8px; font-weight:500;"></div>';

@@ -13,6 +13,13 @@
 </head>
 <body>
 
+<a href="javascript:history.back()" 
+   class="mobile-back-btn" 
+   aria-label="Go back">
+  &#8592;
+</a>
+
+
 <script type="module">
 import { initializeApp } 
   from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
@@ -58,18 +65,54 @@ onAuthStateChanged(auth, (user) => {
   // Update navbar user display
   const userDisplay = document.getElementById('nav-user-display');
   if (userDisplay && user) {
+    userDisplay.classList.add('user-dropdown-container');
     userDisplay.innerHTML = `
-      <img src="${user.photoURL}" 
-           class="user-avatar"
-           onerror="this.style.display='none'">
-      <span class="user-name">
-        ${user.displayName.split(' ')[0]}
-      </span>
-      <button onclick="window.firebaseSignOut()" 
-              class="logout-btn">
-        Logout
-      </button>
+      <div class="user-avatar-trigger" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:var(--radius-sm);transition:all var(--transition);">
+        <img src="${user.photoURL}" class="user-avatar" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--accent-blue);" onerror="this.style.display='none'">
+        <span class="user-name" style="font-weight:600;font-size:14px;color:var(--text-heading);">
+          ${user.displayName.split(' ')[0]}
+        </span>
+        <span style="font-size:10px;color:var(--text-secondary);">▼</span>
+      </div>
+      <div class="user-dropdown-menu" style="position:absolute;top:100%;right:0;width:200px;background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;display:none;flex-direction:column;gap:4px;z-index:1000;margin-top:8px;">
+        <div style="padding:8px 12px;border-bottom:1px solid var(--glass-border);margin-bottom:4px;">
+          <div style="font-weight:600;font-size:13px;color:#fff;">${user.displayName}</div>
+          <div style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
+        </div>
+        <button class="dropdown-item settings-btn" style="text-align:left;padding:8px 12px;background:transparent;border:none;color:var(--text-primary);cursor:pointer;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;transition:0.2s;">
+          ⚙️ Settings
+        </button>
+        <button onclick="window.firebaseSignOut()" class="dropdown-item logout-btn" style="text-align:left;padding:8px 12px;background:transparent;border:none;color:var(--error);cursor:pointer;border-radius:var(--radius-sm);font-size:13px;display:flex;align-items:center;gap:8px;transition:0.2s;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          Logout
+        </button>
+      </div>
     `;
+    
+    // Bind click events on the newly injected HTML
+    setTimeout(() => {
+      const trigger = userDisplay.querySelector('.user-avatar-trigger');
+      const menu = userDisplay.querySelector('.user-dropdown-menu');
+      if (trigger && menu) {
+        trigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isObjVisible = menu.style.display === 'flex';
+          menu.style.display = isObjVisible ? 'none' : 'flex';
+        });
+        
+        document.addEventListener('click', (e) => {
+          if (!userDisplay.contains(e.target)) {
+            menu.style.display = 'none';
+          }
+        });
+        
+        // Ensure dynamically added settings button connects to main.js handler
+        const dynSettingsBtn = menu.querySelector('.settings-btn');
+        if (dynSettingsBtn && window.initSettings) {
+          window.initSettings(); 
+        }
+      }
+    }, 50);
   }
 });
 </script>
@@ -154,24 +197,64 @@ onAuthStateChanged(auth, (user) => {
 
 <!-- Settings Modal -->
 <div id="settings-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(5px);z-index:9999;align-items:center;justify-content:center;">
-  <div class="glass-card modal-content" style="width: 400px; max-width: 90%; margin: auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <h2 style="margin:0;">⚙️ Settings</h2>
-      <button id="close-settings" class="btn-icon">✕</button>
+  <div class="glass-card modal-content" style="width: 480px; max-width: 90%; max-height: 85vh; overflow-y: auto; margin: auto; padding: 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+      <h2 style="margin:0; font-size: 1.5rem;">⚙️ Settings</h2>
+      <button id="close-settings" class="btn-icon" style="font-size: 1.2rem;">✕</button>
     </div>
-    <div style="margin-bottom:16px;">
-      <label style="display:block;margin-bottom:8px;color:var(--text-secondary);">🔑 Gemini API Key</label>
-      <div style="display:flex;gap:8px;">
-        <input type="password" id="settings-api-key" placeholder="AIzaSy..." style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:#fff;font-family:monospace;">
-        <button class="btn btn-secondary btn-icon" id="toggle-api-key" title="Show/Hide">👁️</button>
+
+    <!-- Exam config -->
+    <div class="settings-section" style="margin-bottom: 24px;">
+      <h3 style="margin-bottom:12px; font-size:14px; color:var(--accent-blue); display:flex; align-items:center; gap:8px;">
+        🎓 Exam Config
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="display:block; margin-bottom:6px; font-size:13px; color:var(--text-secondary);">ST2 Exam Date</label>
+          <input type="date" id="settings-st2-date" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:#fff; font-family:var(--font-main); outline:none;">
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">Get your free API key from <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent-blue);">aistudio.google.com</a> &rarr; Get API Key</p>
     </div>
-    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--glass-border);">
-      <h3 style="margin-bottom:12px;color:var(--error);font-size:14px;">Data Management</h3>
-      <button id="reset-progress-btn" class="btn btn-error" style="width:100%; justify-content:center;">Reset All Progress</button>
+
+    <!-- Appearance -->
+    <div class="settings-section" style="margin-bottom: 24px; padding-top:16px; border-top:1px solid var(--glass-border);">
+      <h3 style="margin-bottom:12px; font-size:14px; color:var(--accent-blue); display:flex; align-items:center; gap:8px;">
+        🎨 Appearance
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <label style="display:block; margin-bottom:8px; font-size:13px; color:var(--text-secondary);">Accent Color</label>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="color-swatch" data-color="#4fc3f7" style="width:32px; height:32px; border-radius:50%; background:#4fc3f7; border:2px solid transparent; cursor:pointer;" title="Blue"></button>
+            <button class="color-swatch" data-color="#69f0ae" style="width:32px; height:32px; border-radius:50%; background:#69f0ae; border:2px solid transparent; cursor:pointer;" title="Green"></button>
+            <button class="color-swatch" data-color="#b388ff" style="width:32px; height:32px; border-radius:50%; background:#b388ff; border:2px solid transparent; cursor:pointer;" title="Purple"></button>
+            <button class="color-swatch" data-color="#ff8a65" style="width:32px; height:32px; border-radius:50%; background:#ff8a65; border:2px solid transparent; cursor:pointer;" title="Orange"></button>
+            <button class="color-swatch" data-color="#ffd54f" style="width:32px; height:32px; border-radius:50%; background:#ffd54f; border:2px solid transparent; cursor:pointer;" title="Yellow"></button>
+          </div>
+        </div>
+        <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; font-size:14px;">
+          <span>Reduce Motion (Animations)</span>
+          <input type="checkbox" id="settings-reduce-motion" style="width:18px; height:18px; accent-color:var(--accent-blue);">
+        </label>
+      </div>
+    </div>
+
+    <!-- Data config -->
+    <div class="settings-section" style="padding-top:16px; border-top:1px solid var(--glass-border);">
+      <h3 style="margin-bottom:16px; font-size:14px; color:var(--error); display:flex; align-items:center; gap:8px;">
+        💾 Data Management
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button id="settings-export-data" class="btn btn-secondary" style="width:100%; justify-content:center;">⬇️ Export JSLab Data (JSON)</button>
+        <button id="settings-import-data" class="btn btn-secondary" style="width:100%; justify-content:center;" onclick="document.getElementById('import-file-input').click()">⬆️ Import JSLab Data</button>
+        <input type="file" id="import-file-input" accept=".json" style="display:none;">
+        <div style="height:1px; background:var(--glass-border); margin:4px 0;"></div>
+        <button id="settings-clear-notes" class="btn btn-error" style="width:100%; justify-content:center; background:rgba(255,82,82,0.1); border-color:var(--error);">🗑 Clear All Notes</button>
+        <button id="reset-progress-btn" class="btn btn-error" style="width:100%; justify-content:center; background:rgba(255,82,82,0.1); border-color:var(--error);">⚠️ Reset All Progress</button>
+      </div>
     </div>
   </div>
+</div>
 </div>
 
 <script src="../js/progress.js"></script>
@@ -183,5 +266,55 @@ onAuthStateChanged(auth, (user) => {
 <script src="../js/tutorials-data2.js"></script>
 <script src="../js/tutorials-data3.js"></script>
 <script src="../js/tutorials.js"></script>
+
+<nav class="bottom-nav" id="bottom-nav">
+  <a href="/index.html" class="bnav-item" 
+     data-page="home">
+    <span class="bnav-icon">🏠</span>
+    <span class="bnav-label">Home</span>
+  </a>
+  <a href="/pages/tutorials.html" class="bnav-item"
+     data-page="tutorials">
+    <span class="bnav-icon">📖</span>
+    <span class="bnav-label">Learn</span>
+  </a>
+  <a href="/pages/playground.html" class="bnav-item"
+     data-page="playground">
+    <span class="bnav-icon">💻</span>
+    <span class="bnav-label">Code</span>
+  </a>
+  <a href="/pages/quizzes.html" class="bnav-item"
+     data-page="quizzes">
+    <span class="bnav-icon">📝</span>
+    <span class="bnav-label">Quiz</span>
+  </a>
+  <button class="bnav-item" id="bnav-more">
+    <span class="bnav-icon">⋯</span>
+    <span class="bnav-label">More</span>
+  </button>
+</nav>
+
+<div class="more-drawer" id="more-drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-grid">
+    <a href="/pages/ai-chat.html" class="drawer-item">
+      <span>🤖</span><span>AI Tutor</span>
+    </a>
+    <a href="/pages/notes.html" class="drawer-item">
+      <span>📓</span><span>Notes</span>
+    </a>
+    <a href="/pages/git.html" class="drawer-item">
+      <span>🔧</span><span>Git Lab</span>
+    </a>
+    <button class="drawer-item" 
+            id="drawer-settings-btn">
+      <span>⚙️</span><span>Settings</span>
+    </button>
+  </div>
+</div>
+<div class="drawer-backdrop" id="drawer-backdrop">
+</div>
+
+<script src="../js/nav.js"></script>
 </body>
 </html>
