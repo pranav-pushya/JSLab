@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSLab — Login</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%23f7df1e'/><text x='50' y='65' font-size='42' font-weight='bold' text-anchor='middle' fill='%23000'>JS</text></svg>">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
+
+<script type="module">
+import { initializeApp } 
+  from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+import { getAuth, signInWithPopup, 
+  GoogleAuthProvider, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3MN51HurhLZNDj5ZqVrOo8R3Z7QjUXDE",
+  authDomain: "js-lab-pranav.firebaseapp.com",
+  projectId: "js-lab-pranav",
+  storageBucket: "js-lab-pranav.firebasestorage.app",
+  messagingSenderId: "622472486726",
+  appId: "1:622472486726:web:e75d8ad02aaca6cfbc0f47",
+  measurementId: "G-7D8722GJT1"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// Make available globally
+window.firebaseSignIn = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch(e) {
+    console.error("Sign-in error", e);
+  }
+};
+window.firebaseSignOut = () => signOut(auth);
+
+// Auth state change
+onAuthStateChanged(auth, (user) => {
+  window.currentUser = user;
+  
+  const isLoginPage = window.location.pathname.includes('login.html');
+  
+  if (!user && !isLoginPage) {
+    window.location.href = '../pages/login.html'; // Safe fallback over absolute root mapping
+  }
+  if (user && isLoginPage) {
+    window.location.href = '../index.html';
+  }
+  
+  // Update navbar user display
+  const userDisplay = document.getElementById('nav-user-display');
+  if (userDisplay && user) {
+    userDisplay.innerHTML = `
+      <img src="${user.photoURL}" 
+           class="user-avatar"
+           onerror="this.style.display='none'">
+      <span class="user-name">
+        ${user.displayName.split(' ')[0]}
+      </span>
+      <button onclick="window.firebaseSignOut()" 
+              class="logout-btn">
+        Logout
+      </button>
+    `;
+  }
+});
+</script>
+
+<!-- Ambient background shapes from style.css -->
+<div class="blob-1"></div>
+<div class="blob-2"></div>
+<div class="blob-3"></div>
+<canvas id="bg-canvas" style="position:fixed;inset:0;z-index:-2;pointer-events:none;"></canvas>
+
+<div class="glass-card" style="text-align: center; max-width: 400px; width: 90%; padding: 40px 24px; position: relative;">
+  <h1 class="hero-title" style="font-size: 3rem; margin-bottom: 8px;">JSLab</h1>
+  <h2 style="font-size: 1.2rem; color: var(--text-primary); margin-bottom: 8px; font-weight: 600;">Your Personal JS Learning Hub</h2>
+  <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 24px;">Sign in to save your progress, notes, and quiz scores</p>
+
+  <button class="google-btn" onclick="window.firebaseSignIn()">
+    <svg width="20" height="20" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 2.9l5.7-5.7C34 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-4z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 13 24 13c3 0 5.8 1.1 7.9 2.9l5.7-5.7C34 6.5 29.3 4 24 4 16.2 4 9.4 8.3 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36.3 24 36.3c-5.2 0-9.6-3.5-11.2-8.3l-6.5 5C9.5 39.9 16.3 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.8 6l6.2 5.2C40.5 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/>
+    </svg>
+    Continue with Google
+  </button>
+</div>
+
+<div style="margin-top: 2rem; color: var(--text-secondary); font-size: 0.85rem; text-align: center; position: relative;">
+  Built by Pranav Pushya | Chitkara University
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/effects.js"></script>
+</body>
+</html>

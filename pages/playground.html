@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="JSLab Code Playground — Write, run, and experiment with JavaScript code in a real editor.">
+  <title>Playground — JSLab</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%23f7df1e'/><text x='50' y='65' font-size='42' font-weight='bold' text-anchor='middle' fill='%23000'>JS</text></svg>">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<script type="module">
+import { initializeApp } 
+  from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+import { getAuth, signInWithPopup, 
+  GoogleAuthProvider, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3MN51HurhLZNDj5ZqVrOo8R3Z7QjUXDE",
+  authDomain: "js-lab-pranav.firebaseapp.com",
+  projectId: "js-lab-pranav",
+  storageBucket: "js-lab-pranav.firebasestorage.app",
+  messagingSenderId: "622472486726",
+  appId: "1:622472486726:web:e75d8ad02aaca6cfbc0f47",
+  measurementId: "G-7D8722GJT1"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// Make available globally
+window.firebaseSignIn = async () => {
+  const result = await signInWithPopup(auth, provider);
+  return result.user;
+};
+window.firebaseSignOut = () => signOut(auth);
+
+// Auth state change
+onAuthStateChanged(auth, (user) => {
+  window.currentUser = user;
+  
+  const isLoginPage = window.location.pathname.includes('login.html');
+  
+  if (!user && !isLoginPage) {
+    const prefix = window.location.pathname.includes('/pages/') ? '' : 'pages/';
+    window.location.href = prefix + 'login.html';
+  }
+  if (user && isLoginPage) {
+    window.location.href = '../index.html';
+  }
+  
+  // Update navbar user display
+  const userDisplay = document.getElementById('nav-user-display');
+  if (userDisplay && user) {
+    userDisplay.innerHTML = `
+      <img src="${user.photoURL}" 
+           class="user-avatar"
+           onerror="this.style.display='none'">
+      <span class="user-name">
+        ${user.displayName.split(' ')[0]}
+      </span>
+      <button onclick="window.firebaseSignOut()" 
+              class="logout-btn">
+        Logout
+      </button>
+    `;
+  }
+});
+</script>
+
+<!-- Background UI Canvas -->
+<canvas id="bg-canvas" style="position:fixed;inset:0;z-index:-2;pointer-events:none;"></canvas>
+
+<div class="top-progress-bar"><div class="fill" id="top-fill"></div></div>
+<!-- Top Navbar -->
+<nav class="top-navbar">
+  <a href="../index.html" class="nav-brand">JSLab</a>
+  <div class="nav-links">
+    <a href="../index.html">🏠 Home</a>
+    <a href="tutorials.html">📖 Tutorials</a>
+    <a href="playground.html" class="active">💻 Playground</a>
+    <a href="quizzes.html">📝 Quizzes</a>
+    <a href="ai-chat.html">🤖 AI Tutor</a>
+    <a href="notes.html">📓 Notes</a>
+    <a href="git.html">🔧 Git Lab</a>
+    <a href="#" class="settings-btn">⚙️ Settings</a>
+    <div id="nav-user-display" class="nav-user"></div>
+  </div>
+  <button class="hamburger" id="hamburger-menu" aria-label="Menu">☰</button>
+</nav>
+
+<!-- Mobile Navigation Overlay -->
+<div class="mobile-nav-overlay" id="mobile-nav-overlay">
+  <button class="close-menu" id="close-mobile-menu" aria-label="Close menu">✕</button>
+  <div class="nav-links">
+    <a href="../index.html">🏠 Home</a>
+    <a href="tutorials.html">📖 Tutorials</a>
+    <a href="playground.html" class="active">💻 Playground</a>
+    <a href="quizzes.html">📝 Quizzes</a>
+    <a href="ai-chat.html">🤖 AI Tutor</a>
+    <a href="notes.html">📓 Notes</a>
+    <a href="git.html">🔧 Git Lab</a>
+    <a href="#" class="settings-btn">⚙️ Settings</a>
+    <div id="nav-user-display" class="nav-user"></div>
+  </div>
+</div>
+
+<div class="app-container">
+  <main class="main-content">
+    <div class="playground-layout">
+
+      <!-- Toolbar -->
+      <div class="playground-toolbar">
+        <div class="toolbar-group">
+          <button class="btn btn-primary btn-sm" id="run-btn">▶ Run</button>
+          <button class="btn btn-secondary btn-sm" id="clear-btn">🗑 Clear</button>
+        </div>
+        <div class="separator"></div>
+        <div class="toolbar-group challenges-dropdown">
+          <button class="btn btn-secondary btn-sm" id="challenges-btn">📋 Challenges</button>
+          <div class="challenges-menu" id="challenges-menu"></div>
+        </div>
+        <div class="toolbar-group">
+          <button class="btn btn-secondary btn-sm" id="save-btn">💾 Save Program</button>
+          <button class="btn btn-secondary btn-sm" id="snippets-btn">📂 Programs</button>
+          <button class="btn btn-secondary btn-sm" id="export-js-btn">⬇️ Export JS</button>
+        </div>
+        <div class="separator"></div>
+        <div class="toolbar-group">
+          <label style="font-size:13px;color:var(--text-secondary);">Font:
+            <select id="font-size-select" class="select-wrapper" style="margin-left:4px;padding:4px 8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:4px;color:var(--text-primary);font-size:13px;">
+              <option value="13">13px</option>
+              <option value="14" selected>14px</option>
+              <option value="16">16px</option>
+              <option value="18">18px</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <!-- Editor + Output -->
+      <div class="playground-panels">
+        <div class="editor-panel">
+          <div id="editor-container"></div>
+        </div>
+        <div class="output-panel">
+          <!-- Console output -->
+          <div class="console-panel" id="console-panel">
+            <div class="console-header" id="console-header">
+              <span>Console Output</span>
+              <span id="console-toggle">▾</span>
+            </div>
+            <div class="console-output" id="console-output"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Programs Drawer -->
+<div class="right-drawer-overlay" id="programs-drawer-overlay">
+  <div class="right-drawer">
+    <div class="drawer-header">
+      <h3 style="margin:0;font-size:1.2rem;">📂 Saved Programs</h3>
+      <button class="btn-icon" id="programs-close">✕</button>
+    </div>
+    <div class="drawer-body" id="snippets-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+  </div>
+</div>
+
+<button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+<div class="copy-toast" id="copy-toast">Copied!</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(5px);z-index:9999;align-items:center;justify-content:center;">
+  <div class="glass-card modal-content" style="width: 400px; max-width: 90%; margin: auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="margin:0;">⚙️ Settings</h2>
+      <button id="close-settings" class="btn-icon">✕</button>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;margin-bottom:8px;color:var(--text-secondary);">🔑 Gemini API Key</label>
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="settings-api-key" placeholder="AIzaSy..." style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:#fff;font-family:monospace;">
+        <button class="btn btn-secondary btn-icon" id="toggle-api-key" title="Show/Hide">👁️</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">Get your free API key from <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent-blue);">aistudio.google.com</a> &rarr; Get API Key</p>
+    </div>
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--glass-border);">
+      <h3 style="margin-bottom:12px;color:var(--error);font-size:14px;">Data Management</h3>
+      <button id="reset-progress-btn" class="btn btn-error" style="width:100%; justify-content:center;">Reset All Progress</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/progress.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/effects.js"></script>
+<script src="../js/main.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs/loader.min.js"></script>
+<script src="../js/playground.js"></script>
+</body>
+</html>
